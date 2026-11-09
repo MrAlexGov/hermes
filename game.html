@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Neon Catch — яркая аркада на рефлексы</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #05050a;
+      --panel: #0f0f1a;
+      --accent: #00f2ff;
+      --accent2: #ff00ff;
+      --text: #ffffff;
+      --muted: #8888aa;
+    }
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      touch-action: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+    }
+    #ui {
+      position: absolute;
+      top: 16px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hud {
+      pointer-events: auto;
+      background: rgba(15, 15, 26, 0.6);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      border-radius: 12px;
+      padding: 8px 16px;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--accent);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 0 20px rgba(0, 242, 255, 0.15);
+    }
+    .hud .val { color: var(--text); font-family: 'Courier New', monospace; }
+    canvas {
+      display: block;
+      background: radial-gradient(circle at center, #0a0a16 0%, #020205 100%);
+      border-radius: 2px;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 5, 10, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      text-align: center;
+      padding: 24px;
+      backdrop-filter: blur(8px);
+    }
+    .hidden { display: none !important; }
+    h1 {
+      font-size: clamp(1.5rem, 6vw, 2.5rem);
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 8px rgba(0,242,255,0.4));
+    }
+    p.sub {
+      color: var(--muted);
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+    }
+    .btn {
+      padding: 14px 40px;
+      border-radius: 10px;
+      border: none;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 24px rgba(0, 242, 255, 0.45);
+      transition: transform 0.1s, filter 0.2s;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      box-shadow: none;
+      margin-top: 12px;
+    }
+    .controls-hint {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    #gameOver {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 5, 10, 0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      text-align: center;
+      padding: 24px;
+    }
+    #gameOver h2 {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      color: #ff4444;
+    }
+    #gameOver .score {
+      font-size: 1.5rem;
+      color: var(--accent);
+      margin-bottom: 24px;
+      font-family: 'Courier New', monospace;
+    }
+    @media (max-width: 500px) {
+      #ui { padding: 0 12px; top: 10px; }
+      .hud { padding: 6px 12px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="ui">
+    <div class="hud">ОЧКИ <span id="score" class="val">0</span></div>
+    <div class="hud">УРОВЕНЬ <span id="level" class="val">1</span></div>
+    <div class="hud">ЖИЗНИ <span id="lives" class="val">3</span></div>
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <div id="overlay">
+    <h1>Neon<span style="color:var(--accent2)">Catch</span></h1>
+    <p class="sub">Лови цветные шары, избегай бомб<br>Мышь / палец / клавиши ← →</p>
+    <button class="btn" id="startBtn">Начать игру</button>
+    <button class="btn secondary" id="backToLanding">На лендинг</button>
+    <div class="controls-hint">Касание или мышь · клавиши стрелки</div>
+  </div>
+
+  <div id="gameOver">
+    <h2>Игра окончена</h2>
+    <div class="score" id="finalScore">0</div>
+    <button class="btn" id="restartBtn">Играть ещё</button>
+    <button class="btn secondary" id="backBtn">На лендинг</button>
+  </div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const levelEl = document.getElementById('level');
+const livesEl = document.getElementById('lives');
+const overlay = document.getElementById('overlay');
+const gameOver = document.getElementById('gameOver');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const backBtn = document.getElementById('backBtn');
+const backToLandingBtn = document.getElementById('backToLanding');
+
+// Resize canvas to fit screen but keep a playable aspect
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const maxW = Math.min(window.innerWidth, 600);
+  const maxH = Math.min(window.innerHeight, 900);
+  canvas.width = Math.floor(maxW * dpr);
+  canvas.height = Math.floor(maxH * dpr);
+  canvas.style.width = maxW + 'px';
+  canvas.style.height = maxH + 'px';
+  ctx.scale(dpr, dpr);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Game state
+let state = 'MENU'; // MENU, PLAYING, GAMEOVER
+let score = 0;
+let lives = 3;
+let level = 1;
+let spawnTimer = 0;
+let spawnInterval = 700;
+let fallSpeedBase = 160;
+let particles = [];
+let bombs = [];
+let balls = [];
+
+const colors = [
+  '#00f2ff', '#ff00ff', '#ffff00', '#00ff88', '#ff4444', '#aa00ff', '#ffaa00', '#0088ff'
+];
+
+// Paddle
+const paddle = {
+  w: 90,
+  h: 14,
+  x: 0,
+  y: 0,
+  speed: 560,
+  color: '#00f2ff'
+};
+
+function resetPaddle() {
+  paddle.x = (canvas.width / (window.devicePixelRatio || 1)) / 2 - paddle.w / 2;
+  paddle.y = (canvas.height / (window.devicePixelRatio || 1)) - 40;
+}
+
+function getCX() { return canvas.width / (window.devicePixelRatio || 1); }
+function getCY() { return canvas.height / (window.devicePixelRatio || 1); }
+
+function spawnBall() {
+  const cx = getCX();
+  const cy = getCY();
+  const r = 8 + Math.random() * 10;
+  const x = r + Math.random() * (cx - r * 2);
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const isBomb = Math.random() < 0.12 + (level * 0.02);
+  balls.push({
+    x, y: -r - 20, r, color,
+    vx: (Math.random() - 0.5) * 40,
+    vy: fallSpeedBase + level * 20 + Math.random() * 60,
+    isBomb,
+    rot: 0,
+    rotSpeed: (Math.random() - 0.5) * 6
+  });
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 120,
+      vy: (Math.random() - 0.5) * 120,
+      life: 0.4 + Math.random() * 0.5,
+      maxLife: 0.4 + Math.random() * 0.5,
+      color,
+      size: 2 + Math.random() * 4
+    });
+  }
+}
+
+function update(dt) {
+  if (state !== 'PLAYING') return;
+
+  // Move paddle toward target (pointer or keys)
+  const cx = getCX();
+  if (paddle.targetX !== undefined) {
+    const dx = paddle.targetX - (paddle.x + paddle.w / 2);
+    const step = Math.max(-Math.min(Math.abs(dx), paddle.speed * dt), Math.min(Math.abs(dx), paddle.speed * dt));
+    paddle.x += step;
+  }
+  paddle.x = Math.max(0, Math.min(cx - paddle.w, paddle.x));
+
+  // Spawn
+  spawnTimer += dt * 1000;
+  if (spawnTimer >= spawnInterval) {
+    spawnBall();
+    spawnTimer = 0;
+    spawnInterval = Math.max(260, 700 - level * 60);
+  }
+
+  // Update balls
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.rot += b.rotSpeed * dt;
+
+    // Paddle collision
+    if (b.y + b.r > paddle.y && b.y - b.r < paddle.y + paddle.h &&
+        b.x + b.r > paddle.x && b.x - b.r < paddle.x + paddle.w) {
+      if (b.isBomb) {
+        lives--;
+        livesEl.textContent = lives;
+        spawnParticles(b.x, b.y, '#ff4444', 12);
+        balls.splice(i, 1);
+        if (lives <= 0) endGame();
+      } else {
+        score += 10 + level * 2;
+        scoreEl.textContent = score;
+        if (Math.floor(score / 100) + 1 > level) {
+          level++;
+          levelEl.textContent = level;
+          fallSpeedBase += 40;
+        }
+        spawnParticles(b.x, b.y, b.color, 10);
+        balls.splice(i, 1);
+      }
+      continue;
+    }
+
+    // Off screen bottom
+    if (b.y - b.r > getCY() + 40) {
+      if (!b.isBomb) {
+        lives--;
+        livesEl.textContent = lives;
+        if (lives <= 0) endGame();
+      }
+      balls.splice(i, 1);
+    }
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function draw() {
+  const cx = getCX();
+  const cy = getCY();
+  ctx.clearRect(0, 0, canvas.width, ctx.canvas.height);
+
+  // Draw in logical coords (already scaled)
+  // Background glow
+  const grad = ctx.createRadialGradient(cx / 2, cy / 2, 0, cx / 2, cy / 2, Math.max(cx, cy));
+  grad.addColorStop(0, '#1a1a2e');
+  grad.addColorStop(1, '#020205');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, cx, cy);
+
+  // Paddle
+  ctx.save();
+  ctx.translate(paddle.x + paddle.w/2, paddle.y + paddle.h/2);
+  ctx.fillStyle = paddle.color;
+  ctx.shadowColor = paddle.color;
+  ctx.shadowBlur = 16;
+  ctx.roundRect(-paddle.w/2, -paddle.h/2, paddle.w, paddle.h, 6);
+  ctx.fill();
+  ctx.restore();
+
+  // Balls
+  balls.forEach(b => {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = b.isBomb ? 8 : 14;
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    if (b.isBomb) {
+      // bomb shape
+      ctx.moveTo(0, -b.r);
+      ctx.lineTo(b.r * 0.6, b.r * 0.6);
+      ctx.lineTo(0, b.r * 0.9);
+      ctx.lineTo(-b.r * 0.6, b.r * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      // fuse
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -b.r * 0.9);
+      ctx.lineTo(0, -b.r * 1.3);
+      ctx.stroke();
+    } else {
+      ctx.arc(0, 0, b.r, 0, Math.PI * 2);
+      ctx.fill();
+      // highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.arc(-b.r * 0.35, -b.r * 0.35, b.r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // Particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function loop(t) {
+  if (!state) return;
+  const dt = Math.min((t - lastT) / 1000, 0.05);
+  lastT = t;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+let lastT = performance.now();
+requestAnimationFrame(loop);
+
+// Input
+let pointerX = null;
+
+function setPointerX(clientX) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  pointerX = (clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
+  paddle.targetX = pointerX - paddle.w / 2;
+}
+
+window.addEventListener('mousemove', e => { if (state === 'PLAYING') setPointerX(e.clientX); });
+window.addEventListener('touchmove', e => {
+  if (state === 'PLAYING' && e.touches[0]) {
+    e.preventDefault();
+    setPointerX(e.touches[0].clientX);
+  }
+}, { passive: false });
+window.addEventListener('touchstart', e => {
+  if (state === 'PLAYING' && e.touches[0]) setPointerX(e.touches[0].clientX);
+});
+window.addEventListener('keydown', e => {
+  if (state !== 'PLAYING') return;
+  const step = 30;
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') paddle.x -= step;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') paddle.x += d ? 0 : step; // noop guard
+  paddle.x = Math.max(0, Math.min(getCX() - paddle.w, paddle.x));
+  paddle.targetX = undefined;
+});
+
+function startGame() {
+  state = 'PLAYING';
+  score = 0; lives = 3; level = 1;
+  scoreEl.textContent = '0';
+  levelEl.textContent = '1';
+  livesEl.textContent = '3';
+  balls = []; bombs = []; particles = [];
+  spawnTimer = 0; spawnInterval = 700; fallSpeedBase = 160;
+  overlay.classList.add('hidden');
+  gameOver.style.display = 'none';
+  resetPaddle();
+  lastT = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function endGame() {
+  state = 'GAMEOVER';
+  document.getElementById('finalScore').textContent = score;
+  gameOver.style.display = 'flex';
+  overlay.classList.add('hidden');
+}
+
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', startGame);
+
+function goLanding() {
+  window.location.href = '/';
+}
+backBtn.addEventListener('click', goLanding);
+backToLandingBtn.addEventListener('click', goLanding);
+
+</script>
+</body>
+</html>
