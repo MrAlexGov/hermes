@@ -439,8 +439,8 @@ window.addEventListener('touchstart', e => {
 window.addEventListener('keydown', e => {
   if (state !== 'PLAYING') return;
   const step = 30;
-  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') paddle.x -= step;
-  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') paddle.x += d ? 0 : step; // noop guard
+  if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') paddle.x -= step;
+  if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') paddle.x += step;
   paddle.x = Math.max(0, Math.min(getCX() - paddle.w, paddle.x));
   paddle.targetX = undefined;
 });
