@@ -421,9 +421,9 @@ let pointerX = null;
 
 function setPointerX(clientX) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  pointerX = (clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
-  paddle.targetX = pointerX - paddle.w / 2;
+  // Работаем в логических CSS-пикселях canvas (0 .. rect.width)
+  const logicalX = clientX - rect.left;
+  paddle.targetX = logicalX - paddle.w / 2;
 }
 
 window.addEventListener('mousemove', e => { if (state === 'PLAYING') setPointerX(e.clientX); });
@@ -471,7 +471,7 @@ startBtn.addEventListener('click', startGame);
 restartBtn.addEventListener('click', startGame);
 
 function goLanding() {
-  window.location.href = '/';
+  window.location.href = '/hermes/';
 }
 backBtn.addEventListener('click', goLanding);
 backToLandingBtn.addEventListener('click', goLanding);
