@@ -185,18 +185,20 @@ const backBtn = document.getElementById('backBtn');
 const backToLandingBtn = document.getElementById('backToLanding');
 
 // Resize canvas to fit screen but keep a playable aspect
+let VW = 600, VH = 800, DPR = 1;
 function resize() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const maxW = Math.min(window.innerWidth, 600);
-  const maxH = Math.min(window.innerHeight, 900);
-  canvas.width = Math.floor(maxW * dpr);
-  canvas.height = Math.floor(maxH * dpr);
-  canvas.style.width = maxW + 'px';
-  canvas.style.height = maxH + 'px';
-  ctx.scale(dpr, dpr);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  VW = Math.min(window.innerWidth, 600);
+  VH = Math.min(window.innerHeight, 900);
+  canvas.width = Math.floor(VW * DPR);
+  canvas.height = Math.floor(VH * DPR);
+  canvas.style.width = VW + 'px';
+  canvas.style.height = VH + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 window.addEventListener('resize', resize);
 resize();
+resetPaddle();
 
 // Game state
 let state = 'MENU'; // MENU, PLAYING, GAMEOVER
@@ -225,12 +227,12 @@ const paddle = {
 };
 
 function resetPaddle() {
-  paddle.x = (canvas.width / (window.devicePixelRatio || 1)) / 2 - paddle.w / 2;
-  paddle.y = (canvas.height / (window.devicePixelRatio || 1)) - 40;
+  paddle.x = VW / 2 - paddle.w / 2;
+  paddle.y = VH - 40;
 }
 
-function getCX() { return canvas.width / (window.devicePixelRatio || 1); }
-function getCY() { return canvas.height / (window.devicePixelRatio || 1); }
+function getCX() { return VW; }
+function getCY() { return VH; }
 
 function spawnBall() {
   const cx = getCX();
@@ -270,8 +272,8 @@ function update(dt) {
   const cx = getCX();
   if (paddle.targetX !== undefined) {
     const dx = paddle.targetX - (paddle.x + paddle.w / 2);
-    const step = Math.max(-Math.min(Math.abs(dx), paddle.speed * dt), Math.min(Math.abs(dx), paddle.speed * dt));
-    paddle.x += step;
+    const maxStep = paddle.speed * dt;
+    paddle.x += Math.max(-maxStep, Math.min(maxStep, dx));
   }
   paddle.x = Math.max(0, Math.min(cx - paddle.w, paddle.x));
 
@@ -457,7 +459,6 @@ function startGame() {
   gameOver.style.display = 'none';
   resetPaddle();
   lastT = performance.now();
-  requestAnimationFrame(loop);
 }
 
 function endGame() {
