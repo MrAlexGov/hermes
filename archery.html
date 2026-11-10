@@ -300,26 +300,9 @@ function release(){
 function fireArrow(){
   const cx=VW/2, cy=VH-120;
   const dx=(px!=null?px:cx)-cx, dy=(py!=null?py:cy)-cy;
-  const len=Math.hypot(dx,dy)||1;
-  const sp=600+drawPower*500;
-  const shake=Math.sin(breath*3)*0.008*sp;
-  const vx=(dx/len)*sp + wind*8 + shake;
-  const vy=(dy/len)*sp;
-  const vlen=Math.hypot(vx,vy)||1, ux=vx/vlen, uy=vy/vlen;
-  arrow={x:cx,y:cy,vx,vy,life:3,stuck:false,travelled:0,willHit:false};
-  if(target){
-    const tcx=target.x, tcy=target.y, R=targetR();
-    // ближайшая точка траектории к центру мишени (аналитически, не по краю)
-    const tclose=(tcx-cx)*ux+(tcy-cy)*uy;
-    const clx=cx+ux*tclose, cly=cy+uy*tclose;
-    const d=Math.hypot(clx-tcx, cly-tcy);
-    if(d<R && tclose>1){
-      arrow.willHit=true;
-      arrow.closeDist=tclose;
-      arrow.offx=clx-tcx; arrow.offy=cly-tcy;
-      arrow.pts=Math.max(1,Math.round(10*(1-d/R)));
-    }
-  }
+  const len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+  const sp=500+drawPower*600;
+  arrow={x:cx,y:cy,vx:ux*sp,vy:uy*sp,life:4,stuck:false,minDist:Infinity,minX:cx,minY:cy};
 }
 function spawnParticles(x,y,color,n){
   for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-0.5)*140,vy:(Math.random()-0.5)*140,life:0.35+Math.random()*0.4,max:0.35+Math.random()*0.4,color,size:2+Math.random()*3});
@@ -340,7 +323,7 @@ function update(dt){
   breath+=dt*2;
 
   windTimer+=dt;
-  if(windTimer>2.5){ windTimer=0; wind=(Math.random()-0.5)*4; windEl.textContent=wind.toFixed(1)+' м/с'; }
+  if(windTimer>2.5){ windTimer=0; wind=(Math.random()-0.5)*5; windEl.textContent=wind.toFixed(1)+' м/с'; }
 
   timeLeft-=dt;
   if(timeLeft<=0){ timeLeft=0; endGame(); return; }
@@ -349,20 +332,29 @@ function update(dt){
   if(target) target.phase+=dt*1.3;
 
   if(arrow && !arrow.stuck){
-    arrow.x+=arrow.vx*dt; arrow.y+=arrow.vy*dt;
-    arrow.travelled+=Math.hypot(arrow.vx,arrow.vy)*dt; arrow.life-=dt;
-    if(arrow.willHit && arrow.travelled>=arrow.closeDist){
-      arrow.stuck=true;
-      arrow.x=target.x+arrow.offx; arrow.y=target.y+arrow.offy;
-      stuck.push(arrow);
-      hits++; score+=arrow.pts; scoreEl.textContent=score;
-      if(score>best){best=score;localStorage.setItem('archery_best',best);bestEl.textContent=best;}
-      sHit(); spawnParticles(arrow.x,arrow.y,'#ffd700',16);
-      arrow=null;
-      setTimeout(spawnTarget,700);
-      return;
+    // баллистика: сила тяжести тянет вниз, ветер сносит (снос растёт с дальностью полёта)
+    arrow.vx += wind*30*dt;
+    arrow.vy += 420*dt;
+    arrow.x += arrow.vx*dt; arrow.y += arrow.vy*dt;
+    arrow.life -= dt;
+    if(target){
+      const d=Math.hypot(arrow.x-target.x, arrow.y-target.y);
+      if(d < arrow.minDist){ arrow.minDist=d; arrow.minX=arrow.x; arrow.minY=arrow.y; }
+      const R=targetR();
+      if(arrow.minDist < R && d > R+6){
+        arrow.stuck=true;
+        arrow.x=arrow.minX; arrow.y=arrow.minY;
+        arrow.pts=Math.max(1, Math.round(10*(1-arrow.minDist/R)));
+        stuck.push(arrow);
+        hits++; score+=arrow.pts; scoreEl.textContent=score;
+        if(score>best){best=score;localStorage.setItem('archery_best',best);bestEl.textContent=best;}
+        sHit(); spawnParticles(arrow.x,arrow.y,'#ffd700',16);
+        arrow=null;
+        setTimeout(spawnTarget,700);
+        return;
+      }
     }
-    if(arrow.life<=0||arrow.y>VH+100||arrow.x<-40||arrow.x>VW+40){ arrow=null; if(!target)setTimeout(spawnTarget,700); }
+    if(arrow.life<=0||arrow.y>VH+150||arrow.x<-60||arrow.x>VW+60){ arrow=null; if(!target)setTimeout(spawnTarget,700); }
   }
 
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1);}
