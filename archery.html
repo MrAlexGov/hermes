@@ -292,18 +292,17 @@ addEventListener('keyup',e=>{ if(e.code==='Space'&&state==='PLAYING')up(); });
 
 function release(){
   if(!isDrawing)return; isDrawing=false;
-  drawPower=Math.min(1,(performance.now()-drawStart)/600);
+  drawPower=Math.max(0.15, Math.min(1,(performance.now()-drawStart)/450));
   aimEl.classList.remove('hit');
-  if(drawPower<0.15)return;
   sShoot(); fireArrow();
 }
 function fireArrow(){
   const cx=VW/2, cy=VH-120;
   const dx=(px!=null?px:cx)-cx, dy=(py!=null?py:cy)-cy;
   const len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
-  const sp=12+drawPower*18;
-  const shake=Math.sin(breath*3)*0.03*sp;
-  arrow={x:cx,y:cy,vx:ux*sp+wind*0.5+shake,vy:uy*sp-2,life:1.6,stuck:false};
+  const sp=600+drawPower*500;
+  const shake=Math.sin(breath*3)*0.01*sp;
+  arrow={x:cx,y:cy,vx:ux*sp+wind*10+shake,vy:uy*sp,life:2.4,stuck:false};
 }
 function spawnParticles(x,y,color,n){
   for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-0.5)*140,vy:(Math.random()-0.5)*140,life:0.35+Math.random()*0.4,max:0.35+Math.random()*0.4,color,size:2+Math.random()*3});
@@ -333,7 +332,7 @@ function update(dt){
   if(target) target.phase+=dt*1.3;
 
   if(arrow && !arrow.stuck){
-    arrow.x+=arrow.vx*dt; arrow.y+=arrow.vy*dt; arrow.vy+=9*dt; arrow.life-=dt;
+    arrow.x+=arrow.vx*dt; arrow.y+=arrow.vy*dt; arrow.vy+=140*dt; arrow.life-=dt;
     if(target){
       const d=Math.hypot(arrow.x-target.x, arrow.y-target.y);
       const R=targetR();
