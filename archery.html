@@ -258,7 +258,7 @@ let state='MENU', score=0, best=+(localStorage.getItem('archery_best')||0),
     arrow=null, particles=[], stuck=[], target=null, breath=0, stars=[];
 for(let i=0;i<60;i++) stars.push({x:Math.random()*VW, y:Math.random()*(VH*0.6), r:Math.random()*1.4+0.3, tw:Math.random()*6.3});
 
-function targetR(){ return Math.min(VW,VH)*0.16; }
+function targetR(){ return target?target.r:58; }
 function resetGame(){
   score=0; timeLeft=60; hits=0; wind=0; windTimer=0; drawPower=0;
   arrow=null; particles=[]; stuck=[]; breath=0;
@@ -266,8 +266,9 @@ function resetGame(){
   spawnTarget();
 }
 function spawnTarget(){
-  const m=60;
-  target={x:m+Math.random()*(VW-m*2), y:m+Math.random()*(VH*0.55), phase:Math.random()*6.28};
+  const d=Math.random();
+  const R=46 + (1-d)*26;
+  target={x:40+Math.random()*(VW-80), y:VH*(0.42 + d*0.30), r:R};
   stuck=[];
 }
 
@@ -301,7 +302,7 @@ function fireArrow(){
   const cx=VW/2, cy=VH-120;
   const dx=(px!=null?px:cx)-cx, dy=(py!=null?py:cy)-cy;
   const len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
-  const sp=500+drawPower*600;
+  const sp=380+drawPower*380;
   arrow={x:cx,y:cy,vx:ux*sp,vy:uy*sp,life:4,stuck:false,minDist:Infinity,minX:cx,minY:cy};
 }
 function spawnParticles(x,y,color,n){
@@ -329,12 +330,10 @@ function update(dt){
   if(timeLeft<=0){ timeLeft=0; endGame(); return; }
   timeEl.textContent=Math.ceil(timeLeft);
 
-  if(target) target.phase+=dt*1.3;
-
   if(arrow && !arrow.stuck){
     // баллистика: сила тяжести тянет вниз, ветер сносит (снос растёт с дальностью полёта)
-    arrow.vx += wind*30*dt;
-    arrow.vy += 420*dt;
+    arrow.vx += wind*45*dt;
+    arrow.vy += 600*dt;
     arrow.x += arrow.vx*dt; arrow.y += arrow.vy*dt;
     arrow.life -= dt;
     if(target){
@@ -343,14 +342,15 @@ function update(dt){
       const R=targetR();
       if(arrow.minDist < R && d > R+6){
         arrow.stuck=true;
-        arrow.x=arrow.minX; arrow.y=arrow.minY;
+        arrow.wx=arrow.minX; arrow.wy=arrow.minY;
+        arrow.ang=Math.atan2(arrow.vy, arrow.vx);
         arrow.pts=Math.max(1, Math.round(10*(1-arrow.minDist/R)));
         stuck.push(arrow);
         hits++; score+=arrow.pts; scoreEl.textContent=score;
         if(score>best){best=score;localStorage.setItem('archery_best',best);bestEl.textContent=best;}
-        sHit(); spawnParticles(arrow.x,arrow.y,'#ffd700',16);
+        sHit(); spawnParticles(arrow.wx,arrow.wy,'#ffd700',16);
         arrow=null;
-        setTimeout(spawnTarget,700);
+        setTimeout(spawnTarget,1100);
         return;
       }
     }
@@ -407,12 +407,15 @@ function drawForest(){
 }
 function drawTarget(){
   if(!target)return;
-  const tx=target.x+Math.sin(target.phase)*4;
-  const ty=target.y+Math.cos(target.phase*0.7)*3;
+  const tx=target.x;
+  const ty=target.y;
   const R=targetR();
-  // подставка
-  ctx.fillStyle='rgba(30,24,16,0.9)';
-  ctx.fillRect(tx-3, ty+R*0.72, 6, R*0.9);
+  // тренога до земли
+  ctx.strokeStyle='rgba(52,40,26,0.95)'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(tx, ty+R*0.75); ctx.lineTo(tx, VH); ctx.stroke();
+  ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(tx, ty+R*0.75); ctx.lineTo(tx-R*1.1, VH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tx, ty+R*0.75); ctx.lineTo(tx+R*1.1, VH); ctx.stroke();
   // настоящая мишень
   const rings=[['#f5f5f0',1],['#1a1a1a',0.8],['#2f5fd0',0.6],['#e0392f',0.4],['#ffd700',0.2]];
   rings.forEach(([c,f])=>{
@@ -423,16 +426,16 @@ function drawTarget(){
   ctx.save(); ctx.shadowColor='rgba(255,215,0,0.4)'; ctx.shadowBlur=12;
   ctx.beginPath(); ctx.arc(tx,ty,R*0.2,0,6.28); ctx.strokeStyle='#ffd700'; ctx.lineWidth=1.5; ctx.stroke();
   ctx.restore();
-  // стрелы, воткнутые в мишень
-  stuck.forEach(a=>{ drawArrowStuck(tx+a.offx, ty+a.offy); });
+  // стрелы, воткнутые в мишень (абсолютные координаты + угол полёта)
+  stuck.forEach(a=>{ drawArrowStuck(a.wx, a.wy, a.ang); });
   if(stuck.length){
     const last=stuck[stuck.length-1];
     ctx.fillStyle='#ffd700'; ctx.font='bold 16px Segoe UI'; ctx.textAlign='center';
-    ctx.fillText('+'+last.pts, tx+last.offx, ty+last.offy-18);
+    ctx.fillText('+'+last.pts, last.wx, last.wy-18);
   }
 }
-function drawArrowStuck(x,y){
-  ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/2);
+function drawArrowStuck(x,y,ang){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
   const g=ctx.createLinearGradient(-30,0,30,0);
   g.addColorStop(0,'#9a6b3f'); g.addColorStop(1,'#c8945a');
   ctx.fillStyle=g; ctx.fillRect(-30,-1.6,60,3.2);
